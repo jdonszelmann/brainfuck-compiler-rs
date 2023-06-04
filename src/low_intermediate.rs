@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use crate::desugared_brainfuck::{DesugaredBrainFuckInstruction, DesugaredBrainFuckProgram};
 use crate::parser::Parser;
@@ -17,6 +18,32 @@ pub enum LowLevelIntermediateExpr {
     Print(Variable),
     Input(Variable),
     WhileNotZero(Variable, Vec<LowLevelIntermediateExpr>),
+}
+
+impl LowLevelIntermediateExpr {
+    fn fmt_expr(&self, f: &mut Formatter<'_>, depth: usize) -> std::fmt::Result {
+        write!(f, "{:level$}", "", level = depth * 4)?;
+        match self {
+            LowLevelIntermediateExpr::Const(var, val) => write!(f, "v{var} = {val};"),
+            LowLevelIntermediateExpr::Copy { dest, src } => write!(f, "v{dest} = v{src};"),
+            LowLevelIntermediateExpr::AddAssign { dest, modifier } => write!(f, "v{dest} += v{modifier};"),
+            LowLevelIntermediateExpr::SubAssign { dest, modifier } => write!(f, "v{dest} -= v{modifier};"),
+            LowLevelIntermediateExpr::Print(v) => write!(f, "print v{v};"),
+            LowLevelIntermediateExpr::Input(v) => write!(f, "input v{v};"),
+            LowLevelIntermediateExpr::WhileNotZero(var, block) => {
+                write!(f, "while v{var} != 0 {{\n")?;
+                LowLevelIntermediateProgram::fmt_block(f, block, depth + 1)?;
+                write!(f, "}}")
+            }
+        }
+
+    }
+}
+
+impl Display for LowLevelIntermediateExpr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.fmt_expr(f, 0)
+    }
 }
 
 pub struct LowLevelIntermediateProgram {
@@ -393,6 +420,21 @@ impl LowLevelIntermediateProgram {
         Self {
             program: res,
         }
+    }
+
+    fn fmt_block(f: &mut Formatter<'_>, block: &[LowLevelIntermediateExpr], depth: usize) -> std::fmt::Result {
+        for i in block {
+            i.fmt_expr(f, depth)?;
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for LowLevelIntermediateProgram {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f)?;
+        Self::fmt_block(f, &self.program, 0)
     }
 }
 
